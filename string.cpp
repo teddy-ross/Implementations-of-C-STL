@@ -3,6 +3,77 @@
 #include <stdexcept>
 
 namespace my_string{
+
+class String;
+
+class StringView {
+public:
+    static constexpr std::size_t npos = static_cast<std::size_t>(-1);
+
+    // ── Constructors ────────────────────────────────────────────
+    constexpr StringView() noexcept : data_{nullptr}, size_{0} {}
+    constexpr StringView(const char* s) : data_{s}, size_{s ? std::strlen(s) : 0} {}
+    constexpr StringView(const char* s, std::size_t len) : data_{s}, size_{len} {}
+    StringView(const String& s) noexcept;  // declaration only
+
+    // Rule of zero — default copy/move/destructor are all fine
+    // because we don't own anything
+
+    // ── Element access ──────────────────────────────────────────
+    constexpr const char& operator[](std::size_t i) const { return data_[i]; }
+    constexpr const char& at(std::size_t i) const {
+        if (i >= size_) throw std::out_of_range("StringView::at");
+        return data_[i];
+    }
+    constexpr const char* data() const { return data_; }
+
+    // ── Capacity ────────────────────────────────────────────────
+    constexpr std::size_t size() const { return size_; }
+    constexpr std::size_t length() const { return size_; }
+    constexpr bool empty() const { return size_ == 0; }
+
+    // ── Operations ──────────────────────────────────────────────
+    constexpr StringView substr(std::size_t pos, std::size_t count = npos) const {
+        if (pos > size_) throw std::out_of_range("substr pos out of range");
+        return StringView(data_ + pos, std::min(count, size_ - pos));
+    }
+
+    constexpr std::size_t find(char ch, std::size_t pos = 0) const {
+        for (std::size_t i = pos; i < size_; ++i) {
+            if (data_[i] == ch) return i;
+        }
+        return npos;
+    }
+
+    // ── Modifiers (narrow the view, not the data) ───────────────
+    constexpr void remove_prefix(std::size_t n) {
+        data_ += n;
+        size_ -= n;
+    }
+    constexpr void remove_suffix(std::size_t n) {
+        size_ -= n;
+    }
+
+    // ── Comparison ──────────────────────────────────────────────
+    friend bool operator==(StringView a, StringView b) {
+        return a.size_ == b.size_ && std::memcmp(a.data_, b.data_, a.size_) == 0;
+    }
+    friend bool operator!=(StringView a, StringView b) { return !(a == b); }
+    friend bool operator<(StringView a, StringView b) {
+        int cmp = std::memcmp(a.data_, b.data_, std::min(a.size_, b.size_));
+        return cmp < 0 || (cmp == 0 && a.size_ < b.size_);
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, StringView s) {
+        os.write(s.data_, s.size_);
+        return os;
+    }
+   
+private:
+    const char* data_;
+    std::size_t size_;
+};
+
 class String {
 public:
     static constexpr std::size_t npos = static_cast<std::size_t>(-1);
@@ -102,7 +173,7 @@ public:
       if (size_ > 0){
         size_ -= 1;
       }
-      data_[size_] = '/0';
+      data_[size_] = '\0';
     }
     String& operator+=(const String& other){
       append(other.data_, other.size_);
@@ -117,6 +188,13 @@ public:
       append(&ch, 1);
       return *this;
     }
+    String& operator+=(StringView sv) {
+      append(sv.data(), sv.size());
+      return *this;
+    }
+    
+    operator StringView() const noexcept { return StringView(data_, size_); }
+
     String substr(std::size_t pos, std::size_t count = npos) const {
       if (pos > size_) throw std::out_of_range("substr pos out of range");
       std::size_t actual = std::min(count, size_ - pos);
@@ -132,8 +210,7 @@ public:
       }
     return npos;
     }    
-
-
+    
     void swap(String& other) noexcept{
       std::swap(data_, other.data_);
       std::swap(size_, other.size_);
@@ -168,6 +245,8 @@ public:
       return os;
     }
 
+
+
 private:
     char*       data_;
     std::size_t size_;
@@ -190,7 +269,13 @@ private:
       data_[size_] = '\0';
     }
 };
+
+ inline StringView::StringView(const String& s) noexcept
+     : data_{s.data()}, size_{s.size()} {}
+
 }
+
+   
 
 int main(){
   
